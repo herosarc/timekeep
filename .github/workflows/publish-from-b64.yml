@@ -1,10 +1,6 @@
 name: Publish Timekeep from b64 tarball parts
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '_tarball/**'
-      - '.github/workflows/publish-from-b64.yml'
 permissions:
   contents: write
   pages: write
@@ -21,6 +17,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          count=$(ls _tarball/part_* | wc -l)
+          echo "parts=$count"
+          test "$count" -ge 50
           cat _tarball/part_* | base64 -d > /tmp/site.tar.gz
           mkdir -p /tmp/site
           tar -xzf /tmp/site.tar.gz -C /tmp/site
