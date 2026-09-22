@@ -1,0 +1,62 @@
+name: Assemble and publish Timekeep Pages
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '_staging/**'
+      - '.github/workflows/publish-pages.yml'
+permissions:
+  contents: write
+  pages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Assemble assets from staging
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/site/assets
+          python3 << 'PY'
+          import json, pathlib, hashlib
+          manifest = json.loads(pathlib.Path('_staging/manifest.json').read_text())
+          staging = pathlib.Path('_staging')
+          outdir = pathlib.Path('/tmp/site/assets')
+          for item in manifest:
+              parts = []
+              for name in item['parts']:
+                  parts.append((staging / name).read_text())
+              data = ''.join(parts)
+              digest = hashlib.sha256(data.encode()).hexdigest()
+              if digest != item['sha256']:
+                  raise SystemExit(f"checksum mismatch for {item['file']}: {digest} != {item['sha256']}")
+              (outdir / item['file']).write_text(data)
+              print('assembled', item['file'], len(data))
+          PY
+          printf '%s\n' '<!doctype html><html lang="en"><head><meta charset="UTF-8" /><link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Timekeep</title><script type="module" crossorigin src="./assets/index-OCjbLQas.js"></script><link rel="stylesheet" crossorigin href="./assets/index-B7sqjU7R.css"></head><body><div id="root"></div></body></html>' > /tmp/site/index.html
+          cp /tmp/site/index.html /tmp/site/404.html
+          touch /tmp/site/.nojekyll
+      - name: Publish to gh-pages
+        run: |
+          set -euo pipefail
+          cd /tmp/site
+          git init
+          git checkout -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy Timekeep static site"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git push -f origin gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enable GitHub Pages
+        run: |
+          set -euo pipefail
+          gh api -X POST repos/${{ github.repository }}/pages -f build_type=legacy -f "source[branch]=gh-pages" -f "source[path]=/" || \
+          gh api -X PUT repos/${{ github.repository }}/pages -f build_type=legacy -f "source[branch]=gh-pages" -f "source[path]=/" || true
+          gh api repos/${{ github.repository }}/pages || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
