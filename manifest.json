@@ -1,0 +1,10 @@
+{
+  "name": "TimeKeep",
+  "short_name": "TimeKeep",
+  "start_url": "/timekeep/",
+  "scope": "/timekeep/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": []
+}
